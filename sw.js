@@ -1,5 +1,5 @@
 /* 青森釣りアプリ Service Worker — オフライン対応（キャッシュファースト） */
-const CACHE = 'aomori-tsuri-v2';
+const CACHE = 'aomori-tsuri-v3';
 const CORE = [
   './',
   './index.html',
