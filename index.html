@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
 <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
 <title>青森釣りアプリ</title>
-<!-- build: 2026-11-25 v4 (root date fix: date/time always full-width single column at any width, iOS-only appearance reset, period filter stacked, SW aomori-tsuri-v4, localStorage aomori-tsuri-v1) -->
+<!-- build: 2026-11-25 v5 (staggered layout: period filter = start date full-width row, separator, end date full-width row; date/time rows always single full-width column at any width + :has() fallback; iOS-only appearance reset; SW aomori-tsuri-v5; localStorage aomori-tsuri-v1) -->
 <style>
   :root{
     color-scheme: light dark;
@@ -102,19 +102,20 @@
   .form-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;align-items:end;width:100%;max-width:100%;min-width:0}
   .form-row .grow{min-width:0;width:100%;max-width:100%}
   .form-row.single{grid-template-columns:minmax(0,1fr)}
-  /* Root fix (all widths): a row containing a date/time input is
-     always one full-width column; no field ever sits beside it. */
-  .form-row:has(input[type="date"]), .form-row:has(input[type="time"]),
-  .form-row:has(input[type="datetime-local"]){
-    grid-template-columns:minmax(0,1fr) !important;
-  }
-  .form-row:has(input[type="date"]) > *, .form-row:has(input[type="time"]) > *,
-  .form-row:has(input[type="datetime-local"]) > *, .date-range-row > *{
-    grid-column:1 / -1; width:100% !important; max-width:100% !important; min-width:0 !important;
-  }
-  .date-range-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:end;width:100%;max-width:100%;min-width:0}
+  /* 段違いの保険（全画面幅・常時）：日付／時刻入力を含む行は、行のクラス指定に
+     関係なく常に1カラムにし、その入力欄は行いっぱいに広げる。メディア条件に
+     頼らないので、どの幅・どの端末でも日付欄の横に別の欄が来ない。 */
+  .form-row:has(input[type="date"]),
+  .form-row:has(input[type="datetime-local"]),
+  .form-row:has(input[type="time"]){grid-template-columns:minmax(0,1fr)}
+  .form-row > .grow:has(input[type="date"]),
+  .form-row > .grow:has(input[type="datetime-local"]),
+  .form-row > .grow:has(input[type="time"]){grid-column:1 / -1;width:100%;max-width:100%}
+  /* 期間絞り込みも段違いにする：開始日／〜／終了日を画面幅に関係なく常に縦積みにし、
+     日付欄は1行まるごとの全幅を取る。横並びにしないので iOS の日付入力が隣に重ならない。 */
+  .date-range-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;width:100%;max-width:100%;min-width:0}
   .date-range-row .grow{min-width:0;width:100%;max-width:100%}
-  .date-range-row .range-sep{display:none}
+  .date-range-row .range-sep{font-weight:700;text-align:center;line-height:1.2;padding:0}
   form, form .card{min-width:0;max-width:100%}
   .hint{font-size:.78rem;color:var(--ink2);margin:3px 0 0}
   .form-error{color:var(--warn);font-weight:700;font-size:.88rem;margin:10px 0 0}
@@ -174,7 +175,6 @@
     .form-row > *, .date-range-row > *{
       grid-column:1 / -1; width:100% !important; max-width:100% !important; min-width:0 !important;
     }
-    .date-range-row .range-sep{display:none}
     input[type="date"], input[type="datetime-local"], input[type="time"],
     input[type="number"], input[type="text"], select, textarea{
       width:100% !important; max-width:100% !important; min-width:0 !important;
