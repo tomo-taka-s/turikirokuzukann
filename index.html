@@ -14,6 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
 <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
 <title>青森釣りアプリ</title>
+<!-- build: 2026-11-25 brush-up v2 (date-input fixes) -->
 <style>
   :root{
     --bg:#f4f1ea; --card:#fffdf8; --card2:#ece7da; --ink:#16242e; --ink2:#4c5d68;
@@ -32,8 +33,8 @@
   html{scroll-behavior:smooth}
   body{margin:0;background:var(--bg);color:var(--ink);
     font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",system-ui,-apple-system,sans-serif;
-    line-height:1.6; padding-bottom:86px;}
-  button,[role="button"],select,summary,input:not([type="checkbox"]){min-height:2.25rem}
+    line-height:1.6; padding-bottom:86px;overflow-x:hidden}
+  button,[role="button"],select,summary,input:not([type="checkbox"]){min-height:2.75rem}
   .wrap{max-width:880px;margin:0 auto;padding:0 16px}
   /* hero */
   .hero{position:relative;margin:0 0 14px}
@@ -59,11 +60,23 @@
   .big{font-size:1.5rem;font-weight:800}
   .muted{color:var(--ink2);font-size:.86rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .grow{flex:1 1 140px}
+  .grow{flex:1 1 140px;min-width:0}
   label{font-size:.85rem;font-weight:600;display:block;margin:8px 0 3px}
-  input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
-    background:var(--card);color:var(--ink);font-size:1rem;font-family:inherit}
+  input,select,textarea{width:100%;max-width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--card);color:var(--ink);font-size:16px;font-family:inherit}
   textarea{min-height:64px}
+  /* 日付入力（iOS Safari のサイズエラー対策: 縮まない/はみ出す/高さが揃わない） */
+  input[type="date"]{display:block;width:100%;max-width:100%;min-width:0;min-height:44px;
+    padding:9px 10px;line-height:1.4;font-size:16px;-webkit-appearance:none;appearance:none}
+  input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.4em}
+  input[type="date"]::-webkit-calendar-picker-indicator{margin-left:auto;padding:2px;cursor:pointer}
+  .date-field{flex:1 1 150px;min-width:0}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  @media (max-width:420px){
+    .row .grow{flex:1 1 100%}
+    .row{gap:8px}
+  }
   .btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:10px 18px;
     font-size:1rem;font-weight:700;cursor:pointer;min-height:2.75rem}
   .btn.sub{background:var(--card2);color:var(--ink);border:1px solid var(--line)}
@@ -166,7 +179,7 @@
   <h2>釣果を記録</h2>
   <form id="catchForm" class="card">
     <div class="row">
-      <div class="grow"><label for="fDate">日付</label><input type="date" id="fDate" required /></div>
+      <div class="grow date-field"><label for="fDate">日付</label><input type="date" id="fDate" required /></div>
       <div class="grow"><label for="fSpecies">魚種</label><select id="fSpecies"></select></div>
     </div>
     <div class="row">
@@ -183,6 +196,14 @@
   </form>
 
   <h2>釣果一覧</h2>
+  <div class="card" style="padding:10px 14px">
+    <div class="row">
+      <div class="grow date-field"><label for="fltFrom">開始日</label><input type="date" id="fltFrom" /></div>
+      <div class="grow date-field"><label for="fltTo">終了日</label><input type="date" id="fltTo" /></div>
+      <div style="align-self:flex-end"><button class="btn sub small" type="button" id="fltClear">期間をクリア</button></div>
+    </div>
+    <p class="note" style="margin:6px 0 0">期間で釣果一覧を絞り込めます（集計とランキングは全期間の集計です）。開始日だけ・終了日だけでも使えます。</p>
+  </div>
   <div id="catchList"></div>
   <h2>魚種別ランキング</h2>
   <div class="card" id="rankBox"><p class="muted" style="margin:0">まだ記録がありません。</p></div>
@@ -232,7 +253,7 @@
         <select id="tKind"><option>ロッド</option><option>リール</option><option>ライン</option><option>ルアー</option><option>仕掛け</option><option>その他</option></select></div>
     </div>
     <div class="row">
-      <div class="grow"><label for="tMaint">最終メンテ日</label><input id="tMaint" type="date" /></div>
+      <div class="grow date-field"><label for="tMaint">最終メンテ日</label><input id="tMaint" type="date" /></div>
       <div class="grow"><label for="tCycle">メンテ周期（日）</label><input id="tCycle" type="number" min="1" placeholder="例：90" /></div>
     </div>
     <div style="margin-top:10px"><button class="btn" type="submit">タックルを追加</button></div>
@@ -256,7 +277,7 @@
   <button data-tab="guide" aria-selected="false"><b>▦</b>図鑑</button>
   <button data-tab="tackle" aria-selected="false"><b>▤</b>タックル</button>
 </nav>
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* ================= データ ================= */
@@ -314,6 +335,9 @@ function saveState(){
   try { localStorage.setItem(LS_KEY, JSON.stringify({ catches: state.catches, mySpots: state.mySpots, tackles: state.tackles, checks: state.checks, spotName: state.spot ? state.spot.name : null })); } catch(e) {}
 }
 var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function localDateStr(d){ var y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+dd; }
+function parseLocalDate(s){ if(!s) return null; var p=String(s).split('-'); if(p.length!==3) return null; var d=new Date(+p[0], +p[1]-1, +p[2]); return isNaN(d.getTime())? null : d; }
 function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2200); }
 
 /* ================= タブ ================= */
@@ -427,17 +451,23 @@ $('timerReset').addEventListener('click', function(){ clearInterval(tRun); tRun=
 /* ================= 釣果ログ ================= */
 var fSel=$('fSpecies'); FISH.forEach(function(f){ var o=document.createElement('option'); o.textContent=f.n; fSel.appendChild(o); });
 var sSel=$('fSpot'); SPOTS.forEach(function(sp){ var o=document.createElement('option'); o.textContent=sp.name; sSel.appendChild(o); });
-$('fDate').value = new Date().toISOString().slice(0,10);
+$('fDate').value = localDateStr(new Date());
 function renderCatches(){
   var box=$('catchList');
+  var fltFrom = $('fltFrom') ? $('fltFrom').value : '';
+  var fltTo = $('fltTo') ? $('fltTo').value : '';
+  var list = state.catches.map(function(c,i){ return {c:c, idx:i}; });
+  if(fltFrom) list = list.filter(function(x){ return x.c.date >= fltFrom; });
+  if(fltTo) list = list.filter(function(x){ return x.c.date <= fltTo; });
   if(!state.catches.length){ box.innerHTML='<div class="card"><p class="muted" style="margin:0">まだ記録がありません。上のフォームから最初の1匹を記録しましょう。</p></div>'; }
+  else if(!list.length){ box.innerHTML='<div class="card"><p class="muted" style="margin:0">この期間の記録はありません。期間を変えるか「期間をクリア」を押してください。</p></div>'; }
   else{
-    var rows = state.catches.slice().reverse().map(function(c,i){
-      var idx = state.catches.length-1-i;
-      return '<tr><td>'+c.date+'</td><td><b>'+c.species+'</b></td><td class="num">'+(c.size||'–')+'</td><td class="num">'+(c.weight||'–')+'</td><td>'+c.spot+'<br><span class="muted">'+(c.bait||'')+' '+(c.memo||'')+'</span></td><td><button class="btn danger small" data-del="'+idx+'">削除</button></td></tr>';
+    var rows = list.slice().reverse().map(function(x){
+      var c = x.c;
+      return '<tr><td>'+esc(c.date)+'</td><td><b>'+esc(c.species)+'</b></td><td class="num">'+(c.size||'–')+'</td><td class="num">'+(c.weight||'–')+'</td><td>'+esc(c.spot)+'<br><span class="muted">'+esc(c.bait||'')+' '+esc(c.memo||'')+'</span></td><td><button class="btn danger small" data-del="'+x.idx+'" aria-label="'+esc(c.species)+'の記録を削除">削除</button></td></tr>';
     }).join('');
     box.innerHTML='<div class="card" style="overflow-x:auto"><table><thead><tr><th>日付</th><th>魚種</th><th class="num">cm</th><th class="num">g</th><th>ポイント・詳細</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-    box.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(){ state.catches.splice(+b.dataset.del,1); saveState(); renderCatches(); }); });
+    box.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(){ if(!confirm('この釣果の記録を削除しますか？')) return; state.catches.splice(+b.dataset.del,1); saveState(); renderCatches(); toast('記録を削除しました'); }); });
   }
   /* 集計 */
   $('sumCount').textContent = state.catches.length;
@@ -446,23 +476,28 @@ function renderCatches(){
   var kinds={}; state.catches.forEach(function(c){ kinds[c.species]=(kinds[c.species]||0)+1; });
   $('sumSpecies').textContent = Object.keys(kinds).length;
   var rank = Object.keys(kinds).sort(function(a,b){return kinds[b]-kinds[a]});
-  $('rankBox').innerHTML = rank.length? rank.map(function(k,i){ return '<p style="margin:4px 0"><b>'+(i+1)+'位</b> '+k+' — '+kinds[k]+'匹</p>'; }).join('') : '<p class="muted" style="margin:0">まだ記録がありません。</p>';
+  $('rankBox').innerHTML = rank.length? rank.map(function(k,i){ return '<p style="margin:4px 0"><b>'+(i+1)+'位</b> '+esc(k)+' — '+kinds[k]+'匹</p>'; }).join('') : '<p class="muted" style="margin:0">まだ記録がありません。</p>';
   renderSpots();
 }
 $('catchForm').addEventListener('submit', function(e){
   e.preventDefault();
+  if(!$('fDate').value){ toast('日付を入力してください'); return; }
   state.catches.push({ date:$('fDate').value, species:$('fSpecies').value, size:parseFloat($('fSize').value)||null,
     weight:parseInt($('fWeight').value,10)||null, spot:$('fSpot').value, bait:$('fBait').value.trim(), tackle:$('fTackle').value.trim(), memo:$('fMemo').value.trim() });
   saveState(); renderCatches(); toast('釣果を記録しました');
+  e.target.reset(); $('fDate').value = localDateStr(new Date());
 });
+$('fltFrom').addEventListener('change', renderCatches);
+$('fltTo').addEventListener('change', renderCatches);
+$('fltClear').addEventListener('click', function(){ $('fltFrom').value=''; $('fltTo').value=''; renderCatches(); });
 renderCatches();
 
 /* ================= ポイント ================= */
 function spotCard(sp, mine, idx){
   var cnt = state.catches.filter(function(c){return c.spot===sp.name}).length;
   var map = 'https://www.google.com/maps/search/?api=1&query='+sp.lat+','+sp.lon;
-  return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+sp.name+'</b><span class="tag">'+(sp.area||'自分のポイント')+'</span></div>'
-    +'<p style="margin:6px 0">'+(sp.note||sp.memo||'')+'</p>'
+  return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(sp.name)+'</b><span class="tag">'+esc(sp.area||'自分のポイント')+'</span></div>'
+    +'<p style="margin:6px 0">'+esc(sp.note||sp.memo||'')+'</p>'
     +'<p class="muted" style="margin:4px 0">ここでの釣果：'+cnt+'件 ／ 緯度 '+sp.lat+'・経度 '+sp.lon+'</p>'
     +'<div class="row"><a class="btn small" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="'+map+'">地図を開く</a>'
     +(mine? '<button class="btn danger small" data-mdel="'+idx+'">削除</button>':'')+'</div></div>';
@@ -471,7 +506,7 @@ function renderSpots(){
   var cur=$('fSpot').value; $('fSpot').innerHTML=''; SPOTS.concat(state.mySpots).forEach(function(sp){ var o=document.createElement('option'); o.textContent=sp.name; $('fSpot').appendChild(o); }); if(cur) $('fSpot').value=cur;
   $('presetSpots').innerHTML = SPOTS.map(function(sp){ return spotCard(sp,false,0); }).join('');
   $('mySpots').innerHTML = state.mySpots.length? state.mySpots.map(function(sp,i){ return spotCard(sp,true,i); }).join('') : '<div class="card"><p class="muted" style="margin:0">自分のポイントはまだありません。</p></div>';
-  $('mySpots').querySelectorAll('[data-mdel]').forEach(function(b){ b.addEventListener('click', function(){ state.mySpots.splice(+b.dataset.mdel,1); saveState(); renderSpots(); }); });
+  $('mySpots').querySelectorAll('[data-mdel]').forEach(function(b){ b.addEventListener('click', function(){ if(!confirm('このポイントを削除しますか？')) return; state.mySpots.splice(+b.dataset.mdel,1); saveState(); renderSpots(); toast('ポイントを削除しました'); }); });
 }
 $('mySpotForm').addEventListener('submit', function(e){
   e.preventDefault();
@@ -503,12 +538,12 @@ function renderTackles(){
   if(!state.tackles.length){ box.innerHTML='<div class="card"><p class="muted" style="margin:0">タックルはまだ登録されていません。</p></div>'; return; }
   box.innerHTML = state.tackles.map(function(t,i){
     var warn='';
-    if(t.maint && t.cycle){ var days=Math.floor((Date.now()-new Date(t.maint).getTime())/86400000); warn = days>=t.cycle? ' <span class="warn">メンテ目安を '+ (days-t.cycle) +' 日過ぎています（経過 '+days+' 日）</span>' : ' <span class="good">メンテまであと '+(t.cycle-days)+' 日</span>'; }
-    return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+t.name+'</b><span class="tag">'+t.kind+'</span></div>'
-      +'<p class="muted" style="margin:4px 0">最終メンテ：'+(t.maint||'未記録')+'／周期：'+(t.cycle? t.cycle+'日':'—')+warn+'</p>'
+    if(t.maint && t.cycle){ var md=parseLocalDate(t.maint); var days= md? Math.floor((new Date().setHours(0,0,0,0)-md.getTime())/86400000) : 0; warn = days>=t.cycle? ' <span class="warn">メンテ目安を '+ (days-t.cycle) +' 日過ぎています（経過 '+days+' 日）</span>' : ' <span class="good">メンテまであと '+(t.cycle-days)+' 日</span>'; }
+    return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(t.name)+'</b><span class="tag">'+esc(t.kind)+'</span></div>'
+      +'<p class="muted" style="margin:4px 0">最終メンテ：'+esc(t.maint||'未記録')+'／周期：'+(t.cycle? t.cycle+'日':'—')+warn+'</p>'
       +'<button class="btn danger small" data-tdel="'+i+'">削除</button></div>';
   }).join('');
-  box.querySelectorAll('[data-tdel]').forEach(function(b){ b.addEventListener('click', function(){ state.tackles.splice(+b.dataset.tdel,1); saveState(); renderTackles(); }); });
+  box.querySelectorAll('[data-tdel]').forEach(function(b){ b.addEventListener('click', function(){ if(!confirm('このタックルを削除しますか？')) return; state.tackles.splice(+b.dataset.tdel,1); saveState(); renderTackles(); toast('タックルを削除しました'); }); });
 }
 $('tackleForm').addEventListener('submit', function(e){
   e.preventDefault();
