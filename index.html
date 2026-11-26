@@ -12,9 +12,9 @@
 <meta name="description" content="青森県専用の全部入り釣りアプリ。釣果ログ・潮汐と天気・ポイント・魚種図鑑・タックル管理・時合タイマー。" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
-<link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
 <title>青森釣りアプリ</title>
-<!-- build: 2026-11-25 v5 (staggered layout: period filter = start date full-width row, separator, end date full-width row; date/time rows always single full-width column at any width + :has() fallback; iOS-only appearance reset; SW aomori-tsuri-v5; localStorage aomori-tsuri-v1) -->
+<!-- build: 2026-11-26 v6 (SW aomori-tsuri-v6: network-first for index.html/manifest, cache-first for static assets, per-asset install, never cache error responses, in-page update prompt; staggered date layout unchanged from v5; localStorage aomori-tsuri-v1) -->
 <style>
   :root{
     color-scheme: light dark;
@@ -73,27 +73,22 @@
     font-size:16px; line-height:1.4; min-height:44px; padding:10px 12px; text-align:left;
     color-scheme: light dark;
   }
-  input[type="date"]::-webkit-date-and-time-value{text-align:left;min-width:0}
-  input[type="date"]::-webkit-calendar-picker-indicator{flex-shrink:0;margin-left:4px}
-  /* iOS Safari / WKWebView では日付・時刻入力が固有の最小幅を持ち、width:100% を
-     指定しても欄からはみ出して隣の入力に重なることがある。iOS系でのみ外観を
-     リセットし、幅を完全に入力欄側で制御する（タップすればピッカーは開く）。 */
-  @supports (-webkit-touch-callout: none){
-    input[type="date"], input[type="datetime-local"], input[type="time"]{
-      -webkit-appearance:none; appearance:none;
-    }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value{text-align:left;min-width:0}
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper{min-width:0}
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator{flex-shrink:0;margin-left:4px}
+  /* NOTE: 外観リセットはしない。ネイティブの日付ピッカー表示を残すため。
+     幅のはみ出しは下の単独カラム配置＋min-width:0で制御する。 */
+  input[type="date"], input[type="datetime-local"], input[type="time"]{
+    background:var(--card); color:var(--ink); border-color:var(--line);
   }
   @media (prefers-color-scheme: dark){
-    input[type="date"], input[type="datetime-local"], input[type="time"]{
-      background:#1c1c1e; color:#f5f5f7; border-color:#48484a;
-    }
     input[type="date"]::-webkit-calendar-picker-indicator,
     input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(1)}
-  }
-  @media (prefers-color-scheme: light){
-    input[type="date"], input[type="datetime-local"], input[type="time"]{
-      background:#ffffff; color:#1c1c1e; border-color:#c7c7cc;
-    }
   }
   input[aria-invalid="true"]{border-color:var(--warn);border-width:2px}
   textarea{min-height:64px}
@@ -117,7 +112,7 @@
   .date-range-row .grow{min-width:0;width:100%;max-width:100%}
   .date-range-row .range-sep{font-weight:700;text-align:center;line-height:1.2;padding:0}
   form, form .card{min-width:0;max-width:100%}
-  .hint{font-size:.78rem;color:var(--ink2);margin:3px 0 0}
+  .hint{font-size:.85rem;color:var(--ink2);margin:3px 0 0}
   .form-error{color:var(--warn);font-weight:700;font-size:.88rem;margin:10px 0 0}
   .form-error[hidden]{display:none}
   :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
@@ -132,31 +127,32 @@
   th{color:var(--ink2);font-weight:600;font-size:.8rem}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   .tag{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 8px;font-size:.76rem;margin-right:4px}
-  .tag.season{background:var(--sun);color:#fff;font-weight:700}
+  .tag.season{background:#a9321a;color:#fff;font-weight:700}
+  @media (prefers-color-scheme: dark){ .tag.season{background:var(--sun);color:var(--accent-ink)} }
   .warn{color:var(--warn);font-weight:700}
   .good{color:var(--good);font-weight:700}
   details{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;background:var(--card)}
   summary{cursor:pointer;font-weight:700;padding:6px 0;min-height:44px}
   ul.check{list-style:none;padding:0;margin:6px 0}
   ul.check li{padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;background:var(--card);cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px}
-  ul.check li.done{opacity:.55;text-decoration:line-through}
+  ul.check li.done{color:var(--ink2);text-decoration:line-through}
   ul.check li::before{content:"○";font-size:1.1rem;color:var(--accent)}
   ul.check li.done::before{content:"●"}
   .timer{font-size:2.6rem;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:.04em}
   /* ===== モーダル（編集シート） ===== */
   .modal-overlay{position:fixed;inset:0;background:rgba(4,16,24,.55);z-index:40;display:flex;align-items:flex-end;justify-content:center}
   .modal-overlay[hidden]{display:none}
-  .modal{background:var(--card);color:var(--ink);width:calc(100vw - 32px);max-width:480px;min-width:0;
+  .modal{background:var(--card);color:var(--ink);width:calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));max-width:480px;min-width:0;
     overflow-x:hidden;overflow-y:auto;max-height:88vh;max-height:88dvh;border-radius:14px 14px 0 0;
     padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));box-sizing:border-box}
   .modal h2{margin-top:0}
   /* bottom nav */
   nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);
     border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-  nav.tabs button{flex:1;background:none;border:0;color:var(--ink2);font-size:.72rem;padding:8px 2px 10px;cursor:pointer;min-height:56px;min-width:44px}
+  nav.tabs button{flex:1;background:none;border:0;color:var(--ink2);font-size:.8rem;padding:8px 2px 10px;cursor:pointer;min-height:56px;min-width:44px}
   nav.tabs button b{display:block;font-size:1.15rem;line-height:1.2}
   nav.tabs button[aria-selected="true"]{color:var(--accent);font-weight:700}
-  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--ink);color:var(--bg);
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);
     padding:10px 18px;border-radius:999px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50;max-width:92%;text-align:center}
   .toast.show{opacity:1}
   a{color:var(--accent)}
@@ -180,9 +176,10 @@
       width:100% !important; max-width:100% !important; min-width:0 !important;
     }
     .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .stat b{font-size:1.15rem}
   }
   @media (max-width:380px){
-    .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .grid{grid-template-columns:minmax(0,1fr)}
     .card{padding:12px}
   }
   @media (min-width:481px){ .modal-overlay{align-items:center} .modal{border-radius:14px} }
@@ -232,7 +229,7 @@
 
   <div class="card">
     <h3 style="margin-top:0">時合タイマー</h3>
-    <div class="timer" id="timerDisp">00:00:00</div>
+    <div class="timer" id="timerDisp" role="timer" aria-label="経過時間">00:00:00</div>
     <div class="row" style="justify-content:center">
       <button class="btn" id="timerStart">スタート</button>
       <button class="btn sub" id="timerStop">ストップ</button>
@@ -242,8 +239,8 @@
   </div>
 
   <div class="grid">
-    <div class="stat"><b id="sumCount">0</b><span>総釣果（この端末・この表示中）</span></div>
-    <div class="stat"><b id="sumBest">–</b><span>自己記録（最大サイズ）</span></div>
+    <div class="stat"><b id="sumCount">0</b><span>総釣果（この端末のみ）</span></div>
+    <div class="stat"><b id="sumBest">–</b><span>自己記録（最大サイズ・cm）</span></div>
     <div class="stat"><b id="sumSpecies">0</b><span>釣った魚種数</span></div>
   </div>
 </section>
@@ -253,10 +250,10 @@
   <h2>釣果を記録</h2>
   <form id="catchForm" class="card" novalidate>
     <div class="row form-row single">
-      <div class="grow"><label for="fDate">釣行日</label><input type="date" id="fDate" required aria-describedby="fDateHint" /><p class="hint" id="fDateHint">例：2026/11/24 のように、釣りに行った日を選んでください。</p></div>
+      <div class="grow"><label for="fDate">釣行日</label><input type="date" id="fDate" required aria-describedby="fDateHint" /><p class="hint" id="fDateHint">例：2026年11月24日のように、釣りに行った日を選んでください。</p></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="fTime">時刻</label><input type="time" id="fTime" aria-describedby="fTimeHint" /><p class="hint" id="fTimeHint">釣れた時刻（空欄でも記録できます）。</p></div>
+      <div class="grow"><label for="fTime">釣れた時刻</label><input type="time" id="fTime" aria-describedby="fTimeHint" /><p class="hint" id="fTimeHint">釣れた時刻（空欄でも記録できます）。</p></div>
     </div>
     <div class="row form-row">
       <div class="grow"><label for="fSpecies">魚種</label><select id="fSpecies"></select></div>
@@ -276,14 +273,14 @@
   <h2>釣果一覧</h2>
   <div class="card">
     <div class="date-range-row" role="group" aria-label="釣行日で絞り込み">
-      <div class="grow"><label for="filterFrom">開始日</label><input type="date" id="filterFrom" /></div>
+      <div class="grow"><label for="filterFrom">開始日</label><input type="date" id="filterFrom" aria-describedby="filterHint" /></div>
       <span class="range-sep" aria-hidden="true">〜</span>
-      <div class="grow"><label for="filterTo">終了日</label><input type="date" id="filterTo" /></div>
+      <div class="grow"><label for="filterTo">終了日</label><input type="date" id="filterTo" aria-describedby="filterHint" /></div>
     </div>
-    <p class="hint">初期表示は過去30日間です。空欄にした側は無制限になります。</p>
+    <p class="hint" id="filterHint">初期表示は過去30日間です。空欄にした側は無制限になります。</p>
     <p class="form-error" id="filterError" role="alert" hidden></p>
     <div class="row" style="margin-top:8px">
-      <button class="btn sub small" type="button" id="filterAll">すべて表示</button>
+      <button class="btn sub small" type="button" id="filterAll">絞り込みを解除</button>
       <span class="muted" id="filterCount"></span>
     </div>
   </div>
@@ -295,13 +292,13 @@
 <!-- ============ 釣果 編集モーダル ============ -->
 <div class="modal-overlay" id="editOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
-    <h2 id="editTitle">釣果を編集</h2>
+    <div class="row" style="justify-content:space-between"><h2 id="editTitle" style="margin:0">釣果を編集</h2><button class="btn sub small" type="button" id="editClose" aria-label="編集を閉じる">閉じる</button></div>
     <form id="editForm" novalidate>
       <div class="row form-row single">
-        <div class="grow"><label for="eDate">釣行日</label><input type="date" id="eDate" required aria-describedby="eDateHint" /><p class="hint" id="eDateHint">例：2026/11/24 のように、釣りに行った日を選んでください。</p></div>
+        <div class="grow"><label for="eDate">釣行日</label><input type="date" id="eDate" required aria-describedby="eDateHint" /><p class="hint" id="eDateHint">例：2026年11月24日のように、釣りに行った日を選んでください。</p></div>
       </div>
       <div class="row form-row single">
-        <div class="grow"><label for="eTime">時刻</label><input type="time" id="eTime" /></div>
+        <div class="grow"><label for="eTime">釣れた時刻</label><input type="time" id="eTime" aria-describedby="eTimeHint" /><p class="hint" id="eTimeHint">釣れた時刻（空欄でも記録できます）。</p></div>
       </div>
       <div class="row form-row">
         <div class="grow"><label for="eSpecies">魚種</label><select id="eSpecies"></select></div>
@@ -312,6 +309,7 @@
         <div class="grow"><label for="eWeight">重さ（g）</label><input type="number" id="eWeight" min="0" step="1" /></div>
       </div>
       <label for="eBait">エサ／ルアー</label><input type="text" id="eBait" />
+      <label for="eTackle">タックル</label><input type="text" id="eTackle" />
       <label for="eMemo">メモ</label><textarea id="eMemo"></textarea>
       <p class="form-error" id="editError" role="alert" hidden></p>
       <div class="row" style="margin-top:12px">
@@ -338,7 +336,7 @@
       <div class="grow"><label for="pLon">経度</label><input id="pLon" type="number" step="any" placeholder="例：140.740" /></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="pVisit">最終訪問日</label><input id="pVisit" type="date" aria-describedby="pVisitHint" /><p class="hint" id="pVisitHint">最後にこのポイントへ行った日（例：2026/11/24）。空欄でも追加できます。</p></div>
+      <div class="grow"><label for="pVisit">最終訪問日</label><input id="pVisit" type="date" aria-describedby="pVisitHint" /><p class="hint" id="pVisitHint">最後にこのポイントへ行った日（例：2026年11月24日）。空欄でも追加できます。</p></div>
     </div>
     <label for="pMemo">メモ</label><input id="pMemo" placeholder="駐車場、足場、狙える魚など" />
     <p class="form-error" id="spotError" role="alert" hidden></p>
@@ -370,16 +368,16 @@
         <select id="tKind"><option>ロッド</option><option>リール</option><option>ライン</option><option>ルアー</option><option>仕掛け</option><option>その他</option></select></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="tMaint">最終メンテ日</label><input id="tMaint" type="date" aria-describedby="tMaintHint" /><p class="hint" id="tMaintHint">最後に手入れした日（例：2026/11/24）。</p></div>
+      <div class="grow"><label for="tMaint">最終メンテ日</label><input id="tMaint" type="date" aria-describedby="tMaintHint" /><p class="hint" id="tMaintHint">最後に手入れした日（例：2026年11月24日）。</p></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="tCycle">メンテ周期（日）</label><input id="tCycle" type="number" min="1" placeholder="例：90" /></div>
+      <div class="grow"><label for="tCycle">メンテ周期（日）</label><input id="tCycle" type="number" min="1" placeholder="例：90" aria-describedby="tCycleHint" /><p class="hint" id="tCycleHint">例：90日ごと。わからなければ空欄でかまいません。</p></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="tBuy">購入日</label><input id="tBuy" type="date" aria-describedby="tBuyHint" /><p class="hint" id="tBuyHint">買った日（例：2026/11/24）。空欄でも登録できます。</p></div>
+      <div class="grow"><label for="tBuy">購入日</label><input id="tBuy" type="date" aria-describedby="tBuyHint" /><p class="hint" id="tBuyHint">買った日（例：2026年11月24日）。空欄でも登録できます。</p></div>
     </div>
     <div class="row form-row single">
-      <div class="grow"><label for="tNext">次回メンテ予定日</label><input id="tNext" type="date" aria-describedby="tNextHint" /><p class="hint" id="tNextHint">空欄なら、最終メンテ日＋周期から自動で計算します。</p></div>
+      <div class="grow"><label for="tNext">次回メンテ予定日</label><input id="tNext" type="date" aria-describedby="tNextHint" /><p class="hint" id="tNextHint">空欄なら、最終メンテ日＋周期から自動で計算します（最終メンテ日と周期が両方空欄の場合は計算されません）。</p></div>
     </div>
     <p class="form-error" id="tackleError" role="alert" hidden></p>
     <div style="margin-top:10px"><button class="btn" type="submit">タックルを追加</button></div>
@@ -388,18 +386,18 @@
   <h2>持ち物チェックリスト</h2>
   <p class="muted">タップでチェックできます。チェック状態はこの端末に保存されます。</p>
   <ul class="check" id="checkList"></ul>
-  <button class="btn sub" id="checkReset">チェックを全部外す</button>
+  <button class="btn sub" id="checkReset">チェックをすべて外す</button>
 </section>
 
 </main>
 </div>
 
 <nav class="tabs" aria-label="メニュー">
-  <button data-tab="home" aria-selected="true"><b>⌂</b>ホーム</button>
-  <button data-tab="log" aria-selected="false"><b>✎</b>記録</button>
-  <button data-tab="spot" aria-selected="false"><b>◎</b>ポイント</button>
-  <button data-tab="guide" aria-selected="false"><b>▦</b>図鑑</button>
-  <button data-tab="tackle" aria-selected="false"><b>▤</b>タックル</button>
+  <button data-tab="home" aria-selected="true"><b aria-hidden="true">⌂</b>ホーム</button>
+  <button data-tab="log" aria-selected="false"><b aria-hidden="true">✎</b>記録</button>
+  <button data-tab="spot" aria-selected="false"><b aria-hidden="true">◎</b>ポイント</button>
+  <button data-tab="guide" aria-selected="false"><b aria-hidden="true">▦</b>図鑑</button>
+  <button data-tab="tackle" aria-selected="false"><b aria-hidden="true">▤</b>タックル</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
 
@@ -410,7 +408,7 @@ var SPOTS = [
   {name:'浅虫', area:'青森市浅虫・陸奥湾', lat:40.890, lon:140.860, note:'磯と堤防。アイナメ、ソイ、カレイ。温泉街のすぐそば。'},
   {name:'八戸港', area:'八戸市・太平洋', lat:40.550, lon:141.510, note:'大規模港湾。サバ、イカ、カレイ、ヒラメ。イカ釣りで有名。'},
   {name:'大間', area:'下北半島・津軽海峡', lat:41.280, lon:141.250, note:'本州最北端。マグロで有名な海峡の潮流。ソイ、アイナメ、大物狙い。'},
-  {name:'むつ（大湊）', area:'むつ市・陸奥湾', lat:41.240, lon:141.170, note:'陸奥湾奥。カレイ、アイナメ、サケ（季節・要確認）。穏やかな内湾。'},
+  {name:'むつ（大湊）', area:'むつ市・陸奥湾', lat:41.240, lon:141.170, note:'陸奥湾奥。カレイ、アイナメ、サケ（季節・規制要確認）。穏やかな内湾。'},
   {name:'外ヶ浜（蟹田）', area:'東津軽郡・陸奥湾', lat:41.040, lon:140.640, note:'蟹田川河口周辺。カレイ、チヌ、アイナメ。'},
   {name:'深浦', area:'西津軽郡・日本海', lat:40.640, lon:139.930, note:'日本海側。マダイ、ヒラメ、アジ。夕日の名所・千畳敷方面。'},
   {name:'鰺ヶ沢', area:'西津軽郡・日本海', lat:40.780, lon:140.200, note:'その名の通りアジの好漁場。サビキ、ヒラメ、マダイ。'}
@@ -429,7 +427,7 @@ var FISH = [
   {n:'スルメイカ', s:'夏〜秋', season:false, bait:'イカメタル、プラヅノ', how:'八戸沖が本場。船釣り中心、港でも夜に狙える。'},
   {n:'ホッケ', s:'春・秋', season:false, bait:'サビキ、切り身', how:'日本海側・津軽海峡。群れで港に入ることも。'},
   {n:'カサゴ', s:'周年', season:false, bait:'ワーム、ブラクリ', how:'穴釣り・根回り。足元を丁寧に。'},
-  {n:'サケ', s:'秋（河川は要許可確認）', season:false, bait:'浮きルアー', how:'沿岸・河口。漁業権や規制を必ず確認すること。'},
+  {n:'サケ', s:'秋（河川では許可の確認が必要）', season:false, bait:'浮きルアー', how:'沿岸・河口。漁業権や規制を必ず確認すること。'},
   {n:'マダラ', s:'冬', season:true, bait:'ジグ、タラ釣り仕掛け', how:'冬の日本海・太平洋。深場の船釣りが中心。'},
   {n:'ミズダコ', s:'秋〜冬', season:false, bait:'タコエギ、タコジグ', how:'港の岸壁際。根掛かりに注意してボトムを探る。'}
 ];
@@ -445,19 +443,25 @@ var CHECKS = ['ロッド・リール','ライン・リーダーの傷チェッ�
 /* 状態（この端末の localStorage に保存） */
 var LS_KEY = 'aomori-tsuri-v1';
 var state = { spot: SPOTS[0], catches: [], mySpots: [], tackles: [], checks: {} };
+var rawSaved = null;
+try { rawSaved = localStorage.getItem(LS_KEY); } catch(e) {}
 try {
-  var saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+  var saved = JSON.parse(rawSaved || 'null');
   if (saved) {
-    if (Array.isArray(saved.catches)) state.catches = saved.catches;
-    if (Array.isArray(saved.mySpots)) state.mySpots = saved.mySpots;
-    if (Array.isArray(saved.tackles)) state.tackles = saved.tackles;
-    if (saved.checks && typeof saved.checks === 'object') state.checks = saved.checks;
+    if (Array.isArray(saved.catches)) state.catches = saved.catches.filter(function(c){ return c && typeof c === 'object'; });
+    if (Array.isArray(saved.mySpots)) state.mySpots = saved.mySpots.filter(function(s){ return s && typeof s === 'object'; });
+    if (Array.isArray(saved.tackles)) state.tackles = saved.tackles.filter(function(t){ return t && typeof t === 'object'; });
+    if (saved.checks && typeof saved.checks === 'object' && !Array.isArray(saved.checks)) state.checks = saved.checks;
     if (saved.spotName) { for (var si=0; si<SPOTS.length; si++) { if (SPOTS[si].name===saved.spotName) state.spot = SPOTS[si]; } }
   }
-} catch(e) {}
-function saveState(){
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ catches: state.catches, mySpots: state.mySpots, tackles: state.tackles, checks: state.checks, spotName: state.spot ? state.spot.name : null })); } catch(e) {}
+} catch(e) {
+  try { if(rawSaved) localStorage.setItem(LS_KEY + '-corrupt-' + jstTodayStr(), rawSaved); } catch(e2) {}
 }
+function saveState(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ catches: state.catches, mySpots: state.mySpots, tackles: state.tackles, checks: state.checks, spotName: state.spot ? state.spot.name : null })); return true; } catch(e) { return false; }
+}
+function numOrNull(v){ var n=parseFloat(v); return isNaN(n)? null : n; }
+function intOrNull(v){ var n=parseInt(v,10); return isNaN(n)? null : n; }
 var $ = function(id){ return document.getElementById(id); };
 function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2200); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -465,20 +469,25 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 /* ================= 日付ヘルパー（JST基準） ================= */
 var WEEKDAYS = ['日','月','火','水','木','金','土'];
 function jstTodayStr(){
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  var p = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  var g = {}; p.forEach(function(x){ g[x.type]=x.value; });
+  return g.year+'-'+g.month+'-'+g.day;
 }
 function jstNowTimeStr(){
-  return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+  return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
 }
 function jstHour(){
-  return parseInt(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',hour12:false}).format(new Date()),10)||0;
+  return (parseInt(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',hourCycle:'h23'}).format(new Date()),10) % 24) || 0;
 }
 function parseYMD(ymd){
   if(!ymd || typeof ymd!=='string') return null;
   var p = ymd.slice(0,10).split('-'); if(p.length!==3) return null;
   var y=+p[0], m=+p[1], d=+p[2];
   if(!y || !m || !d) return null;
-  return {y:y, m:m, d:d, ms:Date.UTC(y, m-1, d)};
+  if(m<1||m>12||d<1||d>31) return null;
+  var ms = Date.UTC(y, m-1, d); var chk = new Date(ms);
+  if(chk.getUTCMonth()!==m-1 || chk.getUTCDate()!==d) return null;
+  return {y:y, m:m, d:d, ms:ms};
 }
 function toYMD(ms){
   var d = new Date(ms);
@@ -516,8 +525,10 @@ function addDaysYMD(ymd, n){
 function sortKeyOf(c){ return (c.date||'')+'T'+(c.time||'00:00'); }
 /* 旧データ移行：日時一体型（date に 'T' を含む／datetime フィールド）を date＋time に分離 */
 function normalizeCatch(c){
-  if(!c) return c;
-  var dt = c.datetime || (c.date && c.date.indexOf('T')>-1 ? c.date : '');
+  if(!c || typeof c !== 'object') return {date:'', time:'', species:'', spot:'', size:null, weight:null, bait:'', tackle:'', memo:''};
+  if(typeof c.date !== 'string') c.date = '';
+  if(typeof c.datetime !== 'string') c.datetime = '';
+  var dt = c.datetime || (c.date.indexOf('T')>-1 ? c.date : '');
   if(dt){
     var parts = String(dt).split('T');
     c.date = parts[0]||c.date||'';
@@ -533,7 +544,7 @@ function showError(el, input, msg){
 }
 function pastDateError(input, labelName){
   var v = input.value;
-  if(v && isFutureYMD(v)) return labelName+'は今日より後の日付にできません。';
+  if(v && isFutureYMD(v)) return labelName+'は未来の日付にできません。';
   return '';
 }
 
@@ -569,6 +580,7 @@ function moonName(age){
   var today = jstTodayStr();
   $('todayLabel').textContent = fmtDateJaFull(today);
   var p = parseYMD(today);
+  if(!p) return;
   var age = moonAge(new Date(p.ms + 12*3600000));
   $('tideType').textContent = tideName(age)+' の日';
   $('moonAge').textContent = age.toFixed(1);
@@ -587,7 +599,7 @@ function loadWeather(spot){
   var fUrl = 'https://api.open-meteo.com/v1/forecast?latitude='+spot.lat+'&longitude='+spot.lon+'&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m&daily=sunrise,sunset&timezone=Asia%2FTokyo&forecast_days=2';
   var mUrl = 'https://marine-api.open-meteo.com/v1/marine?latitude='+spot.lat+'&longitude='+spot.lon+'&hourly=wave_height&timezone=Asia%2FTokyo&forecast_days=2';
   Promise.all([
-    fetch(fUrl).then(function(r){return r.json()}),
+    fetch(fUrl).then(function(r){ if(!r.ok) throw new Error('forecast '+r.status); return r.json(); }),
     fetch(mUrl).then(function(r){return r.json()}).catch(function(){return null})
   ]).then(function(res){
     var f = res[0], m = res[1];
@@ -598,7 +610,7 @@ function loadWeather(spot){
     if(f.daily && f.daily.time){
       var di = f.daily.time.indexOf(jstTodayStr());
       if(di<0) di = 0;
-      $('wSun').textContent = fmtTime(f.daily.sunrise[di])+' / '+fmtTime(f.daily.sunset[di]);
+      $('wSun').textContent = fmtTime((f.daily.sunrise||[])[di])+' / '+fmtTime((f.daily.sunset||[])[di]);
     }
     var waveNow = null;
     if(m && m.hourly && m.hourly.wave_height && m.hourly.time){
@@ -606,8 +618,8 @@ function loadWeather(spot){
       if(wi<0) wi = jstHour();
       waveNow = m.hourly.wave_height[wi];
       $('wWave').textContent = (waveNow!=null? waveNow+' m':'–');
-    } else { $('wWave').textContent = '取得不可'; }
-    $('condTime').textContent = 'Open-Meteo 実データ';
+    } else { $('wWave').textContent = '取得できませんでした'; }
+    $('condTime').textContent = (f && f.current) ? 'Open-Meteo 実データ' : '取得できませんでした';
     drawChart(f.hourly||null, m && m.hourly ? m.hourly : null);
   }).catch(function(){
     $('condTime').textContent = '取得できませんでした';
@@ -637,23 +649,25 @@ function drawChart(fHourly, mHourly){
   function pts(arr, max, min){
     return arr.map(function(v,i){ if(v==null) return ''; var x=P+i*(W-2*P)/23; var y=H-34-((v-min)/(max-min||1))*(H-62); return x.toFixed(1)+','+y.toFixed(1); }).filter(Boolean).join(' ');
   }
-  var s = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;min-width:520px;height:auto" role="img" aria-label="これから24時間の波と気温のグラフ">';
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" role="img" aria-label="これから24時間の波と気温のグラフ">';
   s += '<line x1="'+P+'" y1="'+(H-34)+'" x2="'+(W-P)+'" y2="'+(H-34)+'" stroke="currentColor" opacity=".25"/>';
   for(var k=0;k<L.length;k++){
     var hh = parseInt(L[k].slice(11,13),10), x = P+k*(W-2*P)/23;
     if(hh===0 && k>0){
       s += '<line x1="'+x+'" y1="22" x2="'+x+'" y2="'+(H-34)+'" stroke="currentColor" opacity=".4" stroke-dasharray="3 3"/>';
-      var dp = parseYMD(L[k].slice(0,10));
+      var dp = parseYMD(L[k].slice(0,10)); if(!dp) continue;
       s += '<text x="'+x+'" y="'+(H-18)+'" font-size="10" fill="currentColor" opacity=".75" text-anchor="middle">'+dp.m+'/'+dp.d+' 0時</text>';
       s += '<text x="'+x+'" y="'+(H-4)+'" font-size="9" fill="currentColor" opacity=".55" text-anchor="middle">日付が変わります</text>';
     } else if(k%6===0){
       s += '<text x="'+x+'" y="'+(H-18)+'" font-size="10" fill="currentColor" opacity=".6" text-anchor="middle">'+hh+'時</text>';
     }
   }
-  if(Wv.some(function(v){return v!=null})) s += '<polyline fill="none" stroke="#0e6b7a" stroke-width="2.5" points="'+pts(Wv,maxW,0)+'"/>';
-  if(T.some(function(v){return v!=null})) s += '<polyline fill="none" stroke="#d94f30" stroke-width="2" stroke-dasharray="5 3" points="'+pts(T,maxT,minT)+'"/>';
-  s += '<text x="'+P+'" y="14" font-size="11" fill="#0e6b7a">― 波 (m)</text><text x="'+(P+70)+'" y="14" font-size="11" fill="#d94f30">- - 気温 (℃)</text>';
+  if(Wv.some(function(v){return v!=null})) s += '<polyline fill="none" style="stroke:var(--accent)" stroke-width="2.5" points="'+pts(Wv,maxW,0)+'"/>';
+  if(T.some(function(v){return v!=null})) s += '<polyline fill="none" style="stroke:var(--sun)" stroke-width="2" stroke-dasharray="5 3" points="'+pts(T,maxT,minT)+'"/>';
+  s += '<text x="'+P+'" y="14" font-size="11" style="fill:var(--ink)">― 波 (m)</text><text x="'+(P+70)+'" y="14" font-size="11" style="fill:var(--ink)">- - 気温 (℃)</text>';
   s += '</svg>';
+  var summary = L.map(function(t,k){ return t.slice(5,10)+' '+t.slice(11,16)+' 波'+(Wv[k]==null?'—':Wv[k]+'m')+' 気温'+(T[k]==null?'—':T[k]+'℃'); }).join('、');
+  s += '<p style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">24時間の波と気温：'+summary+'</p>';
   box.innerHTML = s;
 }
 
@@ -670,11 +684,11 @@ SPOTS.forEach(function(sp,i){
 loadWeather(state.spot);
 
 /* ================= タイマー ================= */
-var tSec=0, tRun=null;
+var tSec=0, tRun=null, tBase=0;
 function tDraw(){ var h=String(Math.floor(tSec/3600)).padStart(2,'0'), m=String(Math.floor(tSec%3600/60)).padStart(2,'0'), s=String(tSec%60).padStart(2,'0'); $('timerDisp').textContent=h+':'+m+':'+s; }
-$('timerStart').addEventListener('click', function(){ if(tRun) return; tRun=setInterval(function(){tSec++; tDraw();},1000); toast('タイマーを開始しました'); });
-$('timerStop').addEventListener('click', function(){ clearInterval(tRun); tRun=null; });
-$('timerReset').addEventListener('click', function(){ clearInterval(tRun); tRun=null; tSec=0; tDraw(); });
+$('timerStart').addEventListener('click', function(){ if(tRun) return; tBase=Date.now()-tSec*1000; tRun=setInterval(function(){tSec=Math.floor((Date.now()-tBase)/1000); tDraw();},1000); $('timerStart').setAttribute('aria-pressed','true'); $('timerStop').setAttribute('aria-pressed','false'); toast('タイマーを開始しました'); });
+$('timerStop').addEventListener('click', function(){ clearInterval(tRun); tRun=null; $('timerStart').setAttribute('aria-pressed','false'); $('timerStop').setAttribute('aria-pressed','true'); });
+$('timerReset').addEventListener('click', function(){ clearInterval(tRun); tRun=null; tSec=0; tDraw(); $('timerStart').setAttribute('aria-pressed','false'); $('timerStop').setAttribute('aria-pressed','false'); });
 
 /* ================= 釣果ログ ================= */
 function fillSelect(sel, items){
@@ -712,13 +726,13 @@ function renderCatches(){
   if(!state.catches.length){
     box.innerHTML='<div class="card"><p class="muted" style="margin:0">まだ記録がありません。上のフォームから最初の1匹を記録しましょう。</p></div>';
   } else if(!list.length){
-    box.innerHTML='<div class="card"><p class="muted" style="margin:0">この期間の記録はありません。「すべて表示」で絞り込みを解除できます。</p></div>';
+    box.innerHTML='<div class="card"><p class="muted" style="margin:0">この期間の記録はありません。「絞り込みを解除」で絞り込みを解除できます。</p></div>';
   } else {
     var rows = list.map(function(r){
       var c=r.c;
-      return '<tr><td>'+esc(fmtDateJa(c.date))+(c.time? '<br><span class="muted">'+esc(c.time)+'</span>':'')+'</td><td><b>'+esc(c.species)+'</b></td><td class="num">'+(c.size||'–')+'</td><td class="num">'+(c.weight||'–')+'</td><td>'+esc(c.spot)+'<br><span class="muted">'+esc(c.bait||'')+' '+esc(c.memo||'')+'</span></td><td><button class="btn sub small" data-edit="'+r.idx+'">編集</button> <button class="btn danger small" data-del="'+r.idx+'">削除</button></td></tr>';
+      return '<tr><td>'+esc(fmtDateJaFull(c.date))+(c.time? '<br><span class="muted">'+esc(c.time)+'</span>':'')+'</td><td><b>'+esc(c.species)+'</b></td><td class="num">'+(c.size||'–')+'</td><td class="num">'+(c.weight||'–')+'</td><td>'+esc(c.spot)+'<br><span class="muted">'+esc(c.bait||'')+' '+esc(c.memo||'')+'</span></td><td><button class="btn sub small" data-edit="'+r.idx+'" aria-label="'+esc(c.species)+'（'+esc(fmtDateJa(c.date))+'）を編集">編集</button> <button class="btn danger small" data-del="'+r.idx+'" aria-label="'+esc(c.species)+'（'+esc(fmtDateJa(c.date))+'）を削除">削除</button></td></tr>';
     }).join('');
-    box.innerHTML='<div class="card"><div class="table-scroll"><table><thead><tr><th>釣行日</th><th>魚種</th><th class="num">cm</th><th class="num">g</th><th>ポイント・詳細</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    box.innerHTML='<div class="card"><div class="table-scroll"><table><thead><tr><th>釣行日</th><th>魚種</th><th class="num">サイズ（cm）</th><th class="num">重さ（g）</th><th>ポイント・詳細</th><th>操作</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
     box.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(){ state.catches.splice(+b.dataset.del,1); saveState(); renderCatches(); }); });
     box.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ openEdit(+b.dataset.edit); }); });
   }
@@ -729,14 +743,14 @@ function renderCatches(){
   var kinds={}; state.catches.forEach(function(c){ kinds[c.species]=(kinds[c.species]||0)+1; });
   $('sumSpecies').textContent = Object.keys(kinds).length;
   var rank = Object.keys(kinds).sort(function(a,b){return kinds[b]-kinds[a]});
-  $('rankBox').innerHTML = rank.length? rank.map(function(k,i){ return '<p style="margin:4px 0"><b>'+(i+1)+'位</b> '+esc(k)+' — '+kinds[k]+'匹</p>'; }).join('') : '<p class="muted" style="margin:0">まだ記録がありません。</p>';
+  $('rankBox').innerHTML = rank.length? rank.map(function(k,i){ return '<p style="margin:4px 0"><b>'+(i+1)+'位</b> '+esc(k)+' — '+kinds[k]+'件</p>'; }).join('') : '<p class="muted" style="margin:0">まだ記録がありません。</p>';
   renderSpots();
 }
 function validateFilter(){
   var from=$('filterFrom').value, to=$('filterTo').value, err='';
-  if(from && to && from>to) err='開始日が終了日より後になっています。開始日と終了日を確認してください。';
+  if(from && to && from>to) err='開始日が終了日より後になっています。';
   showError($('filterError'), null, err);
-  if(!err) renderCatches();
+  renderCatches();
   return !err;
 }
 $('filterFrom').addEventListener('change', validateFilter);
@@ -748,62 +762,74 @@ $('filterAll').addEventListener('click', function(){
 $('catchForm').addEventListener('submit', function(e){
   e.preventDefault();
   var dEl=$('fDate'), err='';
-  if(!dEl.value) err='釣行日を入力してください。';
+  if(!dEl.value) err='釣行日を選んでください。';
   else err = pastDateError(dEl,'釣行日');
   showError($('catchError'), dEl, err);
   if(err){ dEl.focus(); return; }
-  var rec = normalizeCatch({ date:dEl.value, time:$('fTime').value, species:$('fSpecies').value, size:parseFloat($('fSize').value)||null,
-    weight:parseInt($('fWeight').value,10)||null, spot:$('fSpot').value, bait:$('fBait').value.trim(), tackle:$('fTackle').value.trim(), memo:$('fMemo').value.trim() });
-  rec.datetime = rec.date+'T'+(rec.time||'00:00');
-  state.catches.push(rec); saveState();
+  var rec = normalizeCatch({ date:dEl.value, time:$('fTime').value, species:$('fSpecies').value, size:numOrNull($('fSize').value),
+    weight:intOrNull($('fWeight').value), spot:$('fSpot').value, bait:$('fBait').value.trim(), tackle:$('fTackle').value.trim(), memo:$('fMemo').value.trim() });
+  state.catches.push(rec); if(!saveState()){ toast('保存できませんでした。端末の空き容量を確認してください'); return; }
   /* 絞り込み範囲外の記録が隠れないよう、範囲外なら絞り込みを解除する */
   var from=$('filterFrom').value, to=$('filterTo').value;
   if((from && rec.date<from) || (to && rec.date>to)){ $('filterFrom').value=''; $('filterTo').value=''; }
   renderCatches(); toast('釣果を記録しました');
+  e.target.reset(); $('fDate').value = jstTodayStr(); $('fTime').value = jstNowTimeStr();
 });
 
 /* ---- 編集モーダル ---- */
 var editIdx = -1;
+function setSel(el, v){ var ok=false; for(var i=0;i<el.options.length;i++){ if(el.options[i].value===v) ok=true; } if(!ok && v){ var o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); } el.value=v; }
 function openEdit(idx){
   var c = normalizeCatch(state.catches[idx]); if(!c) return;
   editIdx = idx;
   $('eDate').value = c.date||jstTodayStr(); $('eTime').value = c.time||'';
-  $('eSpecies').value = c.species; $('eSpot').value = c.spot;
+  setSel($('eSpecies'), c.species); setSel($('eSpot'), c.spot);
   $('eSize').value = c.size||''; $('eWeight').value = c.weight||'';
-  $('eBait').value = c.bait||''; $('eMemo').value = c.memo||'';
+  $('eBait').value = c.bait||''; $('eTackle').value = c.tackle||''; $('eMemo').value = c.memo||'';
   showError($('editError'), $('eDate'), '');
   $('editOverlay').hidden = false;
   $('eDate').focus();
 }
-function closeEdit(){ $('editOverlay').hidden = true; editIdx = -1; }
+function closeEdit(){ var btn = editIdx>=0 ? document.querySelector('[data-edit="'+editIdx+'"]') : null; $('editOverlay').hidden = true; editIdx = -1; if(btn) btn.focus(); }
 $('editCancel').addEventListener('click', closeEdit);
+$('editClose').addEventListener('click', closeEdit);
 $('editOverlay').addEventListener('click', function(e){ if(e.target===this) closeEdit(); });
 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !$('editOverlay').hidden) closeEdit(); });
+$('editOverlay').addEventListener('keydown', function(e){
+  if(e.key!=='Tab' || $('editOverlay').hidden) return;
+  var f = Array.prototype.filter.call($('editOverlay').querySelectorAll('input,select,textarea,button'), function(el){ return !el.disabled && el.offsetParent!==null; });
+  if(!f.length) return;
+  var first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+});
 $('editForm').addEventListener('submit', function(e){
   e.preventDefault();
   if(editIdx<0) return;
   var dEl=$('eDate'), err='';
-  if(!dEl.value) err='釣行日を入力してください。';
+  if(!dEl.value) err='釣行日を選んでください。';
   else err = pastDateError(dEl,'釣行日');
   showError($('editError'), dEl, err);
   if(err){ dEl.focus(); return; }
-  var old = state.catches[editIdx];
-  state.catches[editIdx] = normalizeCatch({ date:dEl.value, time:$('eTime').value, species:$('eSpecies').value, size:parseFloat($('eSize').value)||null,
-    weight:parseInt($('eWeight').value,10)||null, spot:$('eSpot').value, bait:$('eBait').value.trim(), tackle:old.tackle||'', memo:$('eMemo').value.trim() });
-  saveState(); closeEdit(); renderCatches(); toast('釣果を更新しました');
+  state.catches[editIdx] = normalizeCatch({ date:dEl.value, time:$('eTime').value, species:$('eSpecies').value, size:numOrNull($('eSize').value),
+    weight:intOrNull($('eWeight').value), spot:$('eSpot').value, bait:$('eBait').value.trim(), tackle:$('eTackle').value.trim(), memo:$('eMemo').value.trim() });
+  if(!saveState()){ toast('保存できませんでした。端末の空き容量を確認してください'); return; } closeEdit(); renderCatches(); toast('釣果を更新しました');
 });
 renderCatches();
 
 /* ================= ポイント ================= */
 function spotCard(sp, mine, idx){
+  if(!sp || typeof sp !== 'object') return '';
+  sp.name = sp.name || ''; sp.area = sp.area || '';
   var cnt = state.catches.filter(function(c){return c.spot===sp.name}).length;
-  var map = 'https://www.google.com/maps/search/?api=1&query='+sp.lat+','+sp.lon;
-  var visit = sp.visit ? ' ／ 最終訪問：'+fmtDateJa(sp.visit) : '';
+  var hasPos = isFinite(sp.lat) && isFinite(sp.lon);
+  var map = hasPos ? 'https://www.google.com/maps/search/?api=1&query='+sp.lat+','+sp.lon : '';
+  var visit = sp.visit ? ' ／ 最終訪問：'+fmtDateJaFull(sp.visit) : '';
   return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(sp.name)+'</b><span class="tag">'+esc(sp.area||'自分のポイント')+'</span></div>'
     +'<p style="margin:6px 0">'+esc(sp.note||sp.memo||'')+'</p>'
-    +'<p class="muted" style="margin:4px 0">ここでの釣果：'+cnt+'件 ／ 緯度 '+sp.lat+'・経度 '+sp.lon+visit+'</p>'
-    +'<div class="row"><a class="btn small" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="'+map+'">地図を開く</a>'
-    +(mine? '<button class="btn danger small" data-mdel="'+idx+'">削除</button>':'')+'</div></div>';
+    +'<p class="muted" style="margin:4px 0">ここでの釣果：'+cnt+'件 ／ '+(hasPos ? '緯度 '+sp.lat+'・経度 '+sp.lon : '位置未設定')+visit+'</p>'
+    +'<div class="row">'+(hasPos ? '<a class="btn small" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="'+map+'" aria-label="'+esc(sp.name)+'の地図を開く">地図を開く</a>' : '')
+    +(mine? '<button class="btn danger small" data-mdel="'+idx+'" aria-label="'+esc(sp.name)+'を削除">削除</button>':'')+'</div></div>';
 }
 function renderSpots(){
   $('presetSpots').innerHTML = SPOTS.map(function(sp){ return spotCard(sp,false,0); }).join('');
@@ -812,10 +838,11 @@ function renderSpots(){
 }
 $('mySpotForm').addEventListener('submit', function(e){
   e.preventDefault();
+  if(!$('pName').value.trim()){ showError($('spotError'), $('pName'), '名前を入力してください。'); $('pName').focus(); return; }
   var err = pastDateError($('pVisit'),'最終訪問日');
   showError($('spotError'), $('pVisit'), err);
   if(err){ $('pVisit').focus(); return; }
-  state.mySpots.push({ name:$('pName').value.trim(), area:$('pArea').value.trim(), lat:parseFloat($('pLat').value)||0, lon:parseFloat($('pLon').value)||0, memo:$('pMemo').value.trim(), visit:$('pVisit').value||'' }); saveState();
+  state.mySpots.push({ name:$('pName').value.trim(), area:$('pArea').value.trim(), lat:($('pLat').value==='' ? null : parseFloat($('pLat').value)), lon:($('pLon').value==='' ? null : parseFloat($('pLon').value)), memo:$('pMemo').value.trim(), visit:$('pVisit').value||'' }); if(!saveState()){ toast('保存できませんでした。端末の空き容量を確認してください'); return; }
   renderSpots(); toast('ポイントを追加しました'); e.target.reset();
   $('pVisit').max = jstTodayStr();
 });
@@ -829,7 +856,7 @@ renderSpots();
 /* ================= 図鑑 ================= */
 function renderFish(q){
   $('fishList').innerHTML = FISH.filter(function(f){ return !q || f.n.includes(q) || f.how.includes(q) || f.bait.includes(q); }).map(function(f){
-    return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(f.n)+'</b><span>'+(f.season? '<span class="tag season">今が旬の目安</span>':'')+'<span class="tag">'+esc(f.s)+'</span></div>'
+    return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(f.n)+'</b><span>'+(f.season? '<span class="tag season">今が旬</span>':'')+'<span class="tag">'+esc(f.s)+'</span></div>'
       +'<p style="margin:6px 0">'+esc(f.how)+'</p><p class="muted" style="margin:0">エサ／ルアー：'+esc(f.bait)+'</p></div>';
   }).join('') || '<p class="muted">見つかりませんでした。</p>';
 }
@@ -839,18 +866,23 @@ $('knotList').innerHTML = KNOTS.map(function(k){ return '<details><summary>'+esc
 
 /* ================= タックル ================= */
 function maintInfo(t){
+  if(!t || typeof t !== 'object') return {elapsed:'—', next:'', warnHtml:''};
   if(!t.maint) return {elapsed:'—', next:(t.next||''), warnHtml:''};
   var days = daysSinceYMD(t.maint);
+  if(days!==null && days<0) return {elapsed:'未来の日付', next:(t.next||''), warnHtml:''};
   var elapsed = (days===null || isNaN(days)) ? '—' : (days===0 ? '今日' : days+'日前');
   var next = t.next || (t.cycle ? addDaysYMD(t.maint, t.cycle) : '');
   var warnHtml='';
   if(days!==null && !isNaN(days) && days>=0){
     if(t.cycle){
       warnHtml = days>=t.cycle
-        ? ' <span class="warn">メンテ目安を '+(days-t.cycle)+' 日過ぎています（経過 '+days+' 日）</span>'
+        ? ' <span class="warn">メンテ目安を '+(days-t.cycle)+' 日過ぎています</span>'
         : ' <span class="good">メンテまであと '+(t.cycle-days)+' 日</span>';
     } else if(days>=30){
       warnHtml = ' <span class="warn">最終メンテから '+days+' 日経っています</span>';
+    }
+    if(t.next && daysSinceYMD(t.next) !== null && daysSinceYMD(t.next) > 0){
+      warnHtml += ' <span class="warn">次回メンテ予定日を過ぎています</span>';
     }
   }
   return {elapsed:elapsed, next:next, warnHtml:warnHtml};
@@ -861,19 +893,21 @@ function renderTackles(){
   box.innerHTML = state.tackles.map(function(t,i){
     var info = maintInfo(t);
     return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(t.name)+'</b><span class="tag">'+esc(t.kind)+'</span></div>'
-      +'<p class="muted" style="margin:4px 0">購入日：'+(t.buy? fmtDateJa(t.buy):'—')+'／最終メンテ日：'+(t.maint? fmtDateJa(t.maint)+'（'+info.elapsed+'）':'—')
-      +'／次回メンテ予定日：'+(info.next? fmtDateJa(info.next):'—')+'／周期：'+(t.cycle? t.cycle+'日':'—')+info.warnHtml+'</p>'
-      +'<button class="btn danger small" data-tdel="'+i+'">削除</button></div>';
+      +'<p class="muted" style="margin:4px 0">購入日：'+(t.buy? fmtDateJaFull(t.buy):'—')+'／最終メンテ日：'+(t.maint? fmtDateJaFull(t.maint)+'（'+info.elapsed+'）':'—')
+      +'／次回メンテ予定日：'+(info.next? fmtDateJaFull(info.next):'—')+'／メンテ周期：'+(t.cycle? t.cycle+'日':'—')+info.warnHtml+'</p>'
+      +'<button class="btn danger small" data-tdel="'+i+'" aria-label="'+esc(t.name)+'を削除">削除</button></div>';
   }).join('');
   box.querySelectorAll('[data-tdel]').forEach(function(b){ b.addEventListener('click', function(){ state.tackles.splice(+b.dataset.tdel,1); saveState(); renderTackles(); }); });
 }
 $('tackleForm').addEventListener('submit', function(e){
   e.preventDefault();
+  if(!$('tName').value.trim()){ showError($('tackleError'), $('tName'), '道具名を入力してください。'); $('tName').focus(); return; }
+  if($('tCycle').value !== '' && !(parseInt($('tCycle').value,10)>=1)){ showError($('tackleError'), $('tCycle'), 'メンテ周期は1以上の日数を入力してください。'); $('tCycle').focus(); return; }
   var err = pastDateError($('tBuy'),'購入日') || pastDateError($('tMaint'),'最終メンテ日');
   var badEl = pastDateError($('tBuy'),'購入日') ? $('tBuy') : $('tMaint');
   showError($('tackleError'), err? badEl : null, err);
   if(err){ badEl.focus(); return; }
-  state.tackles.push({ name:$('tName').value.trim(), kind:$('tKind').value, buy:$('tBuy').value||'', maint:$('tMaint').value||'', next:$('tNext').value||'', cycle:parseInt($('tCycle').value,10)||null }); saveState();
+  state.tackles.push({ name:$('tName').value.trim(), kind:$('tKind').value, buy:$('tBuy').value||'', maint:$('tMaint').value||'', next:$('tNext').value||'', cycle:parseInt($('tCycle').value,10)||null }); if(!saveState()){ toast('保存できませんでした。端末の空き容量を確認してください'); return; }
   renderTackles(); toast('タックルを追加しました'); e.target.reset();
   $('tBuy').max = jstTodayStr(); $('tMaint').max = jstTodayStr();
 });
@@ -887,9 +921,57 @@ CHECKS.forEach(function(c){ var li=document.createElement('li'); li.textContent=
 $('checkReset').addEventListener('click', function(){ state.checks={}; saveState(); cl.querySelectorAll('li').forEach(function(li){ li.classList.remove('done'); li.setAttribute('aria-checked','false'); }); });
 
 /* ================= PWA ================= */
+var swWaiting = null, swReloading = false;
+function showSwUpdate(){
+  if (document.getElementById('swUpdate')) return;
+  var bar = document.createElement('div');
+  bar.id = 'swUpdate';
+  bar.setAttribute('role', 'alert');
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:9999;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:#0d1f2d;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);font-size:14px;';
+  var msg = document.createElement('span');
+  msg.textContent = '新しいバージョンがあります';
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '更新する';
+  btn.style.cssText = 'flex:none;padding:8px 14px;border:0;border-radius:8px;background:#2ea3b5;color:#06222a;font-weight:700;';
+  btn.addEventListener('click', function(){
+    if (swWaiting) swWaiting.postMessage({ type: 'SKIP_WAITING' });
+  });
+  var later = document.createElement('button');
+  later.type = 'button';
+  later.textContent = 'あとで';
+  later.style.cssText = 'flex:none;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:#fff;';
+  later.addEventListener('click', function(){ bar.remove(); });
+  bar.appendChild(msg); bar.appendChild(btn); bar.appendChild(later);
+  document.body.appendChild(bar);
+}
+function watchSwUpdate(reg){
+  if (!reg) return;
+  if (reg.waiting) { swWaiting = reg.waiting; showSwUpdate(); }
+  reg.addEventListener('updatefound', function(){
+    var worker = reg.installing;
+    if (!worker) return;
+    worker.addEventListener('statechange', function(){
+      if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+        swWaiting = worker; showSwUpdate();
+      }
+    });
+  });
+}
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(){ /* プレビュー環境では未配置のため無視（公開先では同フォルダの sw.js が使われます） */ });
+    navigator.serviceWorker.register('./sw.js').then(function(reg){
+      watchSwUpdate(reg);
+      // Check for updates on launch, when the app comes back, and hourly.
+      reg.update().catch(function(){});
+      setInterval(function(){ reg.update().catch(function(){}); }, 60 * 60 * 1000);
+      document.addEventListener('visibilitychange', function(){
+        if (!document.hidden) reg.update().catch(function(){});
+      });
+    }).catch(function(){ /* プレビュー環境では未配置のため無視（公開先では同フォルダの sw.js が使われます） */ });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (!swReloading) { swReloading = true; window.location.reload(); }
   });
 }
 </script>
