@@ -1,5 +1,5 @@
-/* 青森釣りアプリ Service Worker — v6: HTML/マニフェストはネットワーク優先、静的アセットはキャッシュ優先 */
-const CACHE = 'aomori-tsuri-v6';
+/* 青森釣りアプリ Service Worker — v7: HTML/マニフェストはネットワーク優先、静的アセットはキャッシュ優先 */
+const CACHE = 'aomori-tsuri-v7';
 const CORE = [
   './manifest.webmanifest',
   './assets/hero.webp',
